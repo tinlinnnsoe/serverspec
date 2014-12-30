@@ -1,0 +1,45 @@
+require 'rake'
+require 'rspec/core/rake_task'
+require 'colorize'
+require 'json'
+
+$HOSTS    = "./hosts"           # List of all hosts
+$REPORTS  = "./reports"         # Where to store reports
+
+class ServerspecTask < RSpec::Core::RakeTask
+
+  attr_accessor :target
+  # Run our serverspec task. Errors are ignored.
+  def run_task(verbose)
+	msg = "\nRun serverspec to host -> " + target
+	print msg.green + "\n"
+	@rspec_opts = ["--format", "documentation", "--format", "html", "--out" , "#{$REPORTS}/#{target}_testresult.html"]
+	print "Spec command -> ".green + spec_command.green + "\n"
+    system("env TARGET_HOST=#{target} #{spec_command}")
+  end
+end
+
+hosts = File.foreach(ENV["HOSTS"] || $HOSTS).map { |line| line.strip }
+hosts.map! { |host|
+  host.strip!
+  {
+    :name => host
+  }
+}
+
+desc "Run serverspec to the host(s)"
+task :spec => "check:server:all"
+
+namespace :check do
+# Per server tasks
+  namespace :server do
+    task :all => hosts.map { |h| h[:name] }
+    hosts.each do |host|
+      desc "Run serverspec to host #{host[:name]}"
+      ServerspecTask.new(host[:name].to_sym) do |t|
+        t.target = host[:name]
+		print "\n" + "Spec pattern -> ".green + t.pattern.green
+      end
+    end
+  end
+end
